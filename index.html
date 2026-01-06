@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Immutable Twin Notes (Synced)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --bg:#050816;--card:#0f172a;--input:#020617;--a:#38bdf8;--text:#e5e7eb;--muted:#9ca3af;
+      --danger:#f97373;--ok:#22c55e;--r1:1.25rem;--r2:.75rem;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+      background:radial-gradient(circle at top,#1f2937 0,#020617 40%,#000 100%);
+      color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.25rem;
+    }
+    .app-shell{
+      width:100%;max-width:1100px;background:linear-gradient(135deg,rgba(15,23,42,.95),rgba(15,23,42,.9));
+      border-radius:1.75rem;border:1px solid rgba(148,163,184,.35);
+      box-shadow:0 20px 60px rgba(15,23,42,.85),0 0 0 1px rgba(15,23,42,.9);
+      padding:1.5rem;position:relative;overflow:hidden;
+    }
+    .app-shell::before{
+      content:"";position:absolute;inset:-40%;
+      background:radial-gradient(circle at 0 0,rgba(56,189,248,.13),transparent 55%),
+               radial-gradient(circle at 100% 100%,rgba(59,130,246,.08),transparent 60%);
+      opacity:.9;pointer-events:none;z-index:-1;
+    }
+    header{display:flex;flex-wrap:wrap;gap:1rem;align-items:flex-start;justify-content:space-between;margin-bottom:1rem}
+    .badge{
+      font-size:.7rem;text-transform:uppercase;letter-spacing:.12em;padding:.2rem .55rem;border-radius:999px;
+      background:rgba(15,23,42,.9);border:1px solid rgba(148,163,184,.7);color:var(--muted);display:inline-block;
+      margin-bottom:.45rem;
+    }
+    h1{margin:0;font-size:1.65rem;letter-spacing:.03em}
+    .subtitle{margin:.45rem 0 0;color:var(--muted);font-size:.92rem;line-height:1.4;max-width:560px}
+    .meta{display:flex;flex-direction:column;gap:.4rem;align-items:flex-end;font-size:.78rem;color:var(--muted);max-width:520px}
+    .meta-pill{
+      padding:.25rem .65rem;border-radius:999px;background:rgba(15,23,42,.9);
+      border:1px solid rgba(56,189,248,.35);color:var(--a);display:inline-flex;gap:.35rem;align-items:center;white-space:nowrap;
+    }
+    .meta-pill-dot{width:6px;height:6px;border-radius:999px;background:var(--ok);box-shadow:0 0 0 2px rgba(34,197,94,.3)}
+    .toolbar{
+      margin:0 0 1.25rem;padding:.85rem;border-radius:1.1rem;border:1px solid rgba(148,163,184,.25);
+      background:rgba(2,6,23,.55);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+      display:grid;grid-template-columns:1fr;gap:.8rem;
+    }
+    .toolbar-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem}
+    .toolbar-title{font-size:.85rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+    .toolbar-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
+    @media (max-width:900px){.toolbar-grid{grid-template-columns:1fr}.meta{align-items:flex-start}}
+    .panel{border:1px solid rgba(148,163,184,.25);border-radius:1rem;padding:.75rem;background:rgba(15,23,42,.55)}
+    .panel h2{margin:0 0 .55rem;font-size:.9rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .row{display:flex;flex-wrap:wrap;gap:.55rem;align-items:center}
+    .field{
+      flex:1;min-width:220px;border-radius:999px;border:1px solid rgba(51,65,85,.9);
+      background:rgba(0,0,0,.35);padding:.55rem .75rem;color:var(--text);outline:none;
+    }
+    .field:focus{border-color:var(--a);box-shadow:0 0 0 1px rgba(56,189,248,.35)}
+    .small{font-size:.78rem;color:var(--muted);line-height:1.35;margin-top:.5rem}
+    .small.ok{color:var(--ok)} .small.err{color:var(--danger)}
+    main{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.25rem}
+    @media (max-width:800px){main{grid-template-columns:1fr}}
+    .slot{
+      position:relative;background:radial-gradient(circle at top left,#020617 0,#020617 40%,#000 100%);
+      border-radius:var(--r1);border:1px solid rgba(148,163,184,.35);
+      padding:1rem;min-height:270px;display:flex;flex-direction:column;gap:.75rem;overflow:hidden;
+    }
+    .slot-header{display:flex;justify-content:space-between;align-items:center;gap:.75rem;padding-bottom:.15rem}
+    .slot-title{font-size:.85rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;gap:.4rem;align-items:center}
+    .slot-index{
+      width:1.35rem;height:1.35rem;border-radius:999px;border:1px solid rgba(148,163,184,.8);
+      display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;color:var(--muted)
+    }
+    .slot-status{
+      font-size:.7rem;padding:.2rem .55rem;border-radius:999px;border:1px solid rgba(148,163,184,.6);color:var(--muted);
+      display:inline-flex;gap:.35rem;align-items:center;background:rgba(15,23,42,.95)
+    }
+    .slot-status-dot{width:7px;height:7px;border-radius:999px;background:rgba(148,163,184,.9)}
+    .slot-status-dot.locked{background:var(--a);box-shadow:0 0 0 1px rgba(56,189,248,.5)}
+    textarea.slot-input{
+      flex:1;width:100%;resize:none;border-radius:var(--r2);border:1px solid rgba(51,65,85,.9);
+      background:radial-gradient(circle at top left,#020617,#000);
+      padding:.85rem .9rem;color:var(--text);font-size:.9rem;line-height:1.45;outline:none;caret-color:var(--a);
+    }
+    textarea.slot-input::placeholder{color:rgba(148,163,184,.7)}
+    textarea.slot-input:focus{
+      border-color:var(--a);
+      box-shadow:0 0 0 1px rgba(56,189,248,.4),0 12px 30px rgba(15,23,42,.9);
+      transform:translateY(-1px);
+    }
+    .slot-footer{margin-top:.25rem;display:flex;justify-content:space-between;align-items:center;font-size:.75rem;color:var(--muted);gap:.75rem}
+    .hint{opacity:.9}
+    .char-count{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      padding:.2rem .45rem;border-radius:999px;border:1px solid rgba(51,65,85,.9);background:rgba(15,23,42,.9);
+    }
+    .btn{
+      border-radius:999px;border:1px solid rgba(148,163,184,.6);
+      background:radial-gradient(circle at top left,rgba(56,189,248,.22),rgba(15,23,42,.96));
+      padding:.35rem .85rem;font-size:.8rem;display:inline-flex;gap:.35rem;align-items:center;color:var(--text);
+      cursor:pointer;outline:none;white-space:nowrap;
+      transition:transform 80ms ease-out,box-shadow 80ms ease-out,border-color 80ms ease-out,background 80ms ease-out;
+    }
+    .btn:active{transform:translateY(1px) scale(.99);box-shadow:0 3px 10px rgba(15,23,42,.9) inset}
+    .btn-primary{border-color:rgba(56,189,248,.8);box-shadow:0 12px 25px rgba(56,189,248,.35)}
+    .btn-primary:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;border-color:rgba(148,163,184,.5);background:rgba(15,23,42,.95)}
+    .btn-ghost{background:rgba(15,23,42,.35);box-shadow:none}
+    .btn-icon{
+      width:14px;height:14px;border-radius:3px;border:1px solid rgba(15,23,42,.7);background:rgba(15,23,42,.95);
+      display:inline-flex;align-items:center;justify-content:center;font-size:.65rem;
+    }
+    .toast{
+      position:fixed;left:50%;bottom:1.3rem;transform:translateX(-50%) translateY(120%);
+      padding:.5rem .9rem;border-radius:999px;background:rgba(15,23,42,.95);
+      border:1px solid rgba(56,189,248,.7);color:var(--text);font-size:.8rem;display:inline-flex;gap:.45rem;align-items:center;
+      box-shadow:0 16px 40px rgba(15,23,42,.95);opacity:0;transition:opacity 160ms ease-out,transform 160ms ease-out;z-index:30;
+    }
+    .toast.visible{opacity:1;transform:translateX(-50%) translateY(0)}
+    .toast-icon{width:16px;height:16px;border-radius:999px;border:1px solid rgba(56,189,248,.85);display:inline-flex;align-items:center;justify-content:center;font-size:.8rem}
+    .codes-box{
+      width:100%;border-radius:.9rem;border:1px solid rgba(51,65,85,.9);background:rgba(0,0,0,.35);
+      padding:.75rem;white-space:pre-wrap;word-break:break-word;
+      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size:.82rem;line-height:1.5;max-height:220px;overflow:auto;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-shell">
+    <header>
+      <div class="title-block">
+        <div class="badge">Account Sync • Notes survive reinstall (server-saved)</div>
+        <h1>Immutable Twin Notes</h1>
+        <p class="subtitle">
+          Notes are saved to your account (Supabase). Reinstall Chrome/Safari/etc. and your notes remain.
+          Each slot can be saved once and becomes read-only forever (enforced by the database).
+        </p>
+      </div>
+      <div class="meta">
+        <div class="meta-pill"><span class="meta-pill-dot"></span><span>Saved in your account database</span></div>
+        <div class="meta-note">If signup/login fails, it’s usually Supabase “Allow signups” or URL config.</div>
+      </div>
+    </header>
+
+    <section class="toolbar">
+      <div class="toolbar-top">
+        <div class="toolbar-title">Account</div>
+        <div class="toolbar-actions">
+          <button class="btn btn-ghost" id="signupBtn" type="button"><span class="btn-icon">+</span><span>Sign up</span></button>
+          <button class="btn btn-ghost" id="loginBtn" type="button"><span class="btn-icon">⇢</span><span>Login</span></button>
+          <button class="btn btn-ghost" id="logoutBtn" type="button" disabled><span class="btn-icon">⎋</span><span>Logout</span></button>
+        </div>
+      </div>
+
+      <div class="toolbar-grid">
+        <div class="panel">
+          <h2>Login</h2>
+          <div class="row">
+            <input class="field" id="email" type="email" placeholder="email" autocomplete="email" />
+            <input class="field" id="password" type="password" placeholder="account password" autocomplete="current-password" />
+          </div>
+
+          <div class="row" style="margin-top:.55rem;">
+            <input class="field" id="vault" type="password" placeholder="VAULT password (20+ chars) — encrypts notes before upload" />
+          </div>
+
+          <div class="small" id="authState">Not logged in</div>
+          <div class="small ok" id="authOk" style="display:none;"></div>
+          <div class="small err" id="authErr" style="display:none;"></div>
+
+          <div class="small" style="margin-top:.65rem;">
+            Hosting URL (must be whitelisted in Supabase):
+            <div id="hostUrl" style="margin-top:.3rem;word-break:break-all;"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Recovery Codes</h2>
+          <div class="row">
+            <button class="btn btn-primary" id="genCodesBtn" type="button"><span class="btn-icon">#</span><span>Generate</span></button>
+            <button class="btn btn-ghost" id="copyCodesBtn" type="button" disabled><span class="btn-icon">⧉</span><span>Copy</span></button>
+          </div>
+          <div class="codes-box" id="codesBox" style="display:none;margin-top:.6rem;"></div>
+
+          <div class="small" style="margin-top:.65rem;">
+            Recovery requires an Edge Function named <b>recover-set-password</b>.
+            If you haven’t deployed it yet, this section will fail (signup/login still works).
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <main>
+      <section class="slot" data-slot="1">
+        <div class="slot-header">
+          <div class="slot-title"><span class="slot-index">1</span><span>First note</span></div>
+          <div class="slot-status"><span class="slot-status-dot" id="dot1"></span><span class="slot-status-text" id="status1">Login required</span></div>
+        </div>
+
+        <textarea class="slot-input" id="input1" placeholder="Login to create or view this slot."></textarea>
+
+        <div class="slot-footer">
+          <span class="hint" id="hint1">Saved to your account (not localStorage).</span>
+          <div style="display:flex;gap:.5rem;align-items:center;">
+            <span class="char-count" id="count1">0 chars</span>
+            <button class="btn btn-primary" id="save1" type="button" disabled><span class="btn-icon">✓</span><span>Save & lock</span></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="slot" data-slot="2">
+        <div class="slot-header">
+          <div class="slot-title"><span class="slot-index">2</span><span>Second note</span></div>
+          <div class="slot-status"><span class="slot-status-dot" id="dot2"></span><span class="slot-status-text" id="status2">Login required</span></div>
+        </div>
+
+        <textarea class="slot-input" id="input2" placeholder="Login to create or view this slot."></textarea>
+
+        <div class="slot-footer">
+          <span class="hint" id="hint2">Saved to your account (not localStorage).</span>
+          <div style="display:flex;gap:.5rem;align-items:center;">
+            <span class="char-count" id="count2">0 chars</span>
+            <button class="btn btn-primary" id="save2" type="button" disabled><span class="btn-icon">✓</span><span>Save & lock</span></button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast">
+    <span class="toast-icon">⧉</span>
+    <span class="toast-text">Copied</span>
+  </div>
+
+  <script>
+    (function(){
+      const toast = document.getElementById("toast");
+      let t = null;
+      window.__toast = (msg) => {
+        toast.querySelector(".toast-text").textContent = msg;
+        toast.classList.add("visible");
+        if (t) clearTimeout(t);
+        t = setTimeout(()=>toast.classList.remove("visible"), 1600);
+      };
+    })();
+  </script>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+    // ✅ Your Supabase project URL:
+    const SUPABASE_URL = "https://lwcechjzoeqaksualhpr.supabase.co";
+    const SUPABASE_ANON_KEY = "sb_publishable_LuAiX2AIIw_naVrJMutoCw_t2dP3HhX";
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // DOM
+    const $ = (id) => document.getElementById(id);
+    const toast = (m) => window.__toast && window.__toast(m);
+
+    const authState = $("authState");
+    const authOk = $("authOk");
+    const authErr = $("authErr");
+
+    const email = $("email");
+    const password = $("password");
+    const vault = $("vault");
+
+    const signupBtn = $("signupBtn");
+    const loginBtn = $("loginBtn");
+    const logoutBtn = $("logoutBtn");
+
+    const input1 = $("input1"), input2 = $("input2");
+    const save1 = $("save1"), save2 = $("save2");
+    const status1 = $("status1"), status2 = $("status2");
+    const dot1 = $("dot1"), dot2 = $("dot2");
+    const count1 = $("count1"), count2 = $("count2");
+
+    const genCodesBtn = $("genCodesBtn");
+    const copyCodesBtn = $("copyCodesBtn");
+    const codesBox = $("codesBox");
+
+    // Show hosting origin (helps you configure Supabase URL config)
+    $("hostUrl").textContent = window.location.origin;
+
+    function show(el, text) { el.textContent = text; el.style.display = "block"; }
+    function hide(el) { el.style.display = "none"; el.textContent = ""; }
+    function clearAuthMsgs(){ hide(authOk); hide(authErr); }
+
+    function setCharCount(which){
+      const ta = which === 1 ? input1 : input2;
+      const c = which === 1 ? count1 : count2;
+      const len = ta.value.length;
+      c.textContent = len + (len === 1 ? " char" : " chars");
+    }
+    input1.addEventListener("input", ()=>setCharCount(1));
+    input2.addEventListener("input", ()=>setCharCount(2));
+
+    // ----------------- Crypto (recommended) -----------------
+    const enc = new TextEncoder();
+    const dec = new TextDecoder();
+
+    function b64(u8){ let s=""; u8.forEach(b=>s+=String.fromCharCode(b)); return btoa(s); }
+    function unb64(s){ const bin=atob(s); const out=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i); return out; }
+
+    async function deriveKey(pass, salt){
+      const km = await crypto.subtle.importKey("raw", enc.encode(pass), "PBKDF2", false, ["deriveKey"]);
+      return crypto.subtle.deriveKey(
+        { name:"PBKDF2", salt, iterations:210000, hash:"SHA-256" },
+        km,
+        { name:"AES-GCM", length:256 },
+        false,
+        ["encrypt","decrypt"]
+      );
+    }
+
+    async function encryptText(pass, plain){
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveKey(pass, salt);
+      const ct = new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM", iv}, key, enc.encode(plain)));
+      return JSON.stringify({ v:1, salt:b64(salt), iv:b64(iv), data:b64(ct) });
+    }
+
+    async function decryptText(pass, payloadStr){
+      const p = JSON.parse(payloadStr);
+      if (!p || p.v !== 1) throw new Error("Bad ciphertext format");
+      const key = await deriveKey(pass, unb64(p.salt));
+      const ptBuf = await crypto.subtle.decrypt({name:"AES-GCM", iv:unb64(p.iv)}, key, unb64(p.data));
+      return dec.decode(new Uint8Array(ptBuf));
+    }
+
+    // ----------------- Recovery codes (client-side generation + SHA-256 hashing) -----------------
+    async function sha256Hex(str){
+      const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+      return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+    }
+
+    function randomCodeBlock(len){
+      const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      const bytes = crypto.getRandomValues(new Uint8Array(len));
+      let out = "";
+      for (let i=0;i<len;i++) out += alphabet[bytes[i] % alphabet.length];
+      return out;
+    }
+    function makeRecoveryCode(){
+      return `${randomCodeBlock(4)}-${randomCodeBlock(4)}-${randomCodeBlock(4)}-${randomCodeBlock(4)}`;
+    }
+
+    async function storeHashedCodesForUser(plainCodes){
+      const { data:{ user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Login required to store code hashes.");
+
+      const hashes = await Promise.all(plainCodes.map(c => sha256Hex(c.trim())));
+      const rows = hashes.map(h => ({ code_hash: h })); // ✅ do NOT send user_id from the browser
+
+      const { error } = await supabase.from("account_recovery_codes").insert(rows);
+      if (error) throw error;
+    }
+
+    // ----------------- Notes UI helpers -----------------
+    function setSlotState(slot, locked, text){
+      const st = slot===1?status1:status2;
+      const dot = slot===1?dot1:dot2;
+      const ta = slot===1?input1:input2;
+      const btn = slot===1?save1:save2;
+
+      if (locked){
+        dot.classList.add("locked");
+        st.textContent = "Locked · Read-only";
+        ta.readOnly = true;
+        btn.disabled = true;
+      } else {
+        dot.classList.remove("locked");
+        st.textContent = text || "Empty · Editable";
+        ta.readOnly = false;
+        btn.disabled = false;
+      }
+    }
+
+    async function loadNotes(){
+      const { data:{ user } } = await supabase.auth.getUser();
+
+      if (!user){
+        authState.textContent = "Not logged in";
+        logoutBtn.disabled = true;
+        save1.disabled = true;
+        save2.disabled = true;
+
+        status1.textContent = "Login required";
+        status2.textContent = "Login required";
+        dot1.classList.remove("locked");
+        dot2.classList.remove("locked");
+        input1.value = "";
+        input2.value = "";
+        input1.placeholder = "Login to create or view this slot.";
+        input2.placeholder = "Login to create or view this slot.";
+        input1.readOnly = true;
+        input2.readOnly = true;
+        setCharCount(1); setCharCount(2);
+        return;
+      }
+
+      logoutBtn.disabled = false;
+      authState.textContent = `Logged in as ${user.email}`;
+
+      const { data, error } = await supabase
+        .from("immutable_notes")
+        .select("slot,ciphertext")
+        .order("slot", { ascending:true });
+
+      if (error){
+        clearAuthMsgs();
+        show(authErr, "Load failed: " + error.message);
+        console.error("Load notes error:", error);
+        return;
+      }
+
+      const map = new Map((data||[]).map(r => [r.slot, r.ciphertext]));
+
+      for (const slot of [1,2]){
+        const ct = map.get(slot);
+        const ta = slot===1?input1:input2;
+        const btn = slot===1?save1:save2;
+
+        if (!ct){
+          ta.value = "";
+          ta.placeholder = `Type your note for slot ${slot}. Once saved, it is permanent.`;
+          setSlotState(slot, false, "Empty · Editable");
+          btn.disabled = false;
+        } else {
+          if ((vault.value || "").length >= 20){
+            try{
+              const plain = await decryptText(vault.value, ct);
+              ta.value = plain;
+            } catch {
+              ta.value = "[Cannot decrypt with this VAULT password]";
+            }
+          } else {
+            ta.value = "[Encrypted note — enter your VAULT password (20+ chars) to view]";
+          }
+          setSlotState(slot, true);
+        }
+        setCharCount(slot);
+      }
+    }
+
+    async function saveSlot(slot){
+      clearAuthMsgs();
+
+      const { data:{ user } } = await supabase.auth.getUser();
+      if (!user){ show(authErr, "Login required."); return; }
+
+      const vaultPass = (vault.value || "");
+      if (vaultPass.length < 20){
+        show(authErr, "Set a VAULT password of at least 20 characters (this encrypts your notes).");
+        return;
+      }
+
+      const ta = slot===1?input1:input2;
+      const value = (ta.value || "").trim();
+      if (!value){ show(authErr, "Type something before saving."); return; }
+
+      try{
+        const ciphertext = await encryptText(vaultPass, value);
+
+        // ✅ Do NOT send user_id from the browser.
+        const { error } = await supabase.from("immutable_notes").insert({
+          slot,
+          ciphertext
+        });
+
+        if (error){
+          show(authErr, "Save failed (slot already locked or blocked): " + error.message);
+          console.error("Save error:", error);
+          return;
+        }
+
+        toast(`Slot ${slot} locked`);
+        show(authOk, `Slot ${slot} saved permanently to your account.`);
+        await loadNotes();
+      } catch (e){
+        console.error("Encryption/save failed:", e);
+        show(authErr, "Encryption/save failed.");
+      }
+    }
+
+    save1.addEventListener("click", ()=>saveSlot(1));
+    save2.addEventListener("click", ()=>saveSlot(2));
+
+    // ----------------- Auth actions -----------------
+    signupBtn.addEventListener("click", async () => {
+      clearAuthMsgs();
+      const em = (email.value||"").trim();
+      const pw = password.value||"";
+      if (!em || !pw){ show(authErr, "Enter email + password."); return; }
+
+      const { error } = await supabase.auth.signUp({ email: em, password: pw });
+      if (error){
+        show(authErr, error.message);
+        console.error("Signup error:", error);
+        return;
+      }
+
+      show(authOk, "Sign up successful. If email confirmation is ON, check your inbox. Then login.");
+      toast("Signed up");
+    });
+
+    loginBtn.addEventListener("click", async () => {
+      clearAuthMsgs();
+      const em = (email.value||"").trim();
+      const pw = password.value||"";
+      if (!em || !pw){ show(authErr, "Enter email + password."); return; }
+
+      const { error } = await supabase.auth.signInWithPassword({ email: em, password: pw });
+      if (error){
+        show(authErr, error.message);
+        console.error("Login error:", error);
+        return;
+      }
+
+      show(authOk, "Logged in.");
+      toast("Logged in");
+      await loadNotes();
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+      clearAuthMsgs();
+      const v = prompt("Enter your VAULT password (20+ chars) to logout:");
+      if (!v || v.length < 20){ show(authErr, "Logout blocked: vault password must be 20+ characters."); return; }
+      if (v !== (vault.value||"")){ show(authErr, "Logout blocked: wrong vault password."); return; }
+
+      const { error } = await supabase.auth.signOut();
+      if (error){
+        show(authErr, error.message);
+        console.error("Logout error:", error);
+        return;
+      }
+
+      toast("Logged out");
+      show(authOk, "Logged out.");
+      await loadNotes();
+    });
+
+    supabase.auth.onAuthStateChange(() => loadNotes());
+
+    // ----------------- Recovery code UI (optional) -----------------
+    let lastPlainCodes = null;
+
+    genCodesBtn.addEventListener("click", async () => {
+      clearAuthMsgs();
+
+      const { data:{ user } } = await supabase.auth.getUser();
+      if (!user){
+        show(authErr, "Login first to store recovery codes to your account.");
+        return;
+      }
+
+      const plainCodes = Array.from({ length: 12 }, makeRecoveryCode);
+      lastPlainCodes = plainCodes;
+
+      codesBox.style.display = "block";
+      codesBox.textContent =
+        "SAVE THESE RECOVERY CODES NOW (print/screenshot/write down).\n" +
+        "Each code should be used only once.\n\n" +
+        plainCodes.join("\n");
+
+      copyCodesBtn.disabled = false;
+      toast("Codes generated");
+
+      try{
+        await storeHashedCodesForUser(plainCodes);
+        show(authOk, "Recovery codes generated and stored (hashed). Keep the plain codes safe.");
+      }catch(e){
+        console.error("Store recovery codes failed:", e);
+        show(authErr, "Generated codes, but storing hashes failed: " + (e.message||"error"));
+      }
+    });
+
+    copyCodesBtn.addEventListener("click", async () => {
+      if (!lastPlainCodes) return;
+      try{
+        await navigator.clipboard.writeText(lastPlainCodes.join("\n"));
+        toast("Codes copied");
+      }catch{
+        show(authErr, "Copy failed. Copy manually from the box.");
+      }
+    });
+
+    // Initial load
+    await loadNotes();
+  </script>
+</body>
+</html>
