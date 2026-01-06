@@ -151,6 +151,8 @@
         <div class="toolbar-actions">
           <button class="btn btn-ghost" id="signupBtn" type="button"><span class="btn-icon">+</span><span>Sign up</span></button>
           <button class="btn btn-ghost" id="loginBtn" type="button"><span class="btn-icon">⇢</span><span>Login</span></button>
+          <button class="btn btn-primary" id="googleBtn" type="button"><span class="btn-icon">G</span><span>Google</span></button>
+          <button class="btn btn-ghost" id="guestBtn" type="button"><span class="btn-icon">👤</span><span>Guest</span></button>
           <button class="btn btn-ghost" id="logoutBtn" type="button" disabled><span class="btn-icon">⎋</span><span>Logout</span></button>
         </div>
       </div>
@@ -167,6 +169,11 @@
             <input class="field" id="vault" type="password" placeholder="VAULT password (20+ chars) — encrypts notes before upload" />
           </div>
 
+          <div class="row" style="margin-top:.55rem;">
+            <button class="btn btn-ghost" id="forgotBtn" type="button"><span class="btn-icon">?</span><span>Forgot password</span></button>
+          </div>
+          <div class="small err" id="forgotHint" style="display:none;"></div>
+
           <div class="small" id="authState">Not logged in</div>
           <div class="small ok" id="authOk" style="display:none;"></div>
           <div class="small err" id="authErr" style="display:none;"></div>
@@ -174,6 +181,13 @@
           <div class="small" style="margin-top:.65rem;">
             Hosting URL (must be whitelisted in Supabase):
             <div id="hostUrl" style="margin-top:.3rem;word-break:break-all;"></div>
+          </div>
+
+          <div class="small" style="margin-top:.65rem;">
+            <b>Upgrade Guest → Permanent:</b> after Guest login, type email + password then click “Upgrade”.
+            <div class="row" style="margin-top:.45rem;">
+              <button class="btn btn-primary" id="upgradeBtn" type="button"><span class="btn-icon">↑</span><span>Upgrade</span></button>
+            </div>
           </div>
         </div>
 
@@ -186,8 +200,26 @@
           <div class="codes-box" id="codesBox" style="display:none;margin-top:.6rem;"></div>
 
           <div class="small" style="margin-top:.65rem;">
-            Recovery requires an Edge Function named <b>recover-set-password</b>.
-            If you haven’t deployed it yet, this section will fail (signup/login still works).
+            Recovery codes reset needs an Edge Function named <b>recover-set-password</b>.
+            If you haven’t deployed it yet, this part will fail (signup/login still works).
+          </div>
+
+          <div class="small" style="margin-top:.65rem;">
+            <b>Recovery code reset (Edge Function)</b>
+            <div class="row" style="margin-top:.45rem;">
+              <input class="field" id="recoverEmail" type="email" placeholder="account email" />
+            </div>
+            <div class="row" style="margin-top:.45rem;">
+              <input class="field" id="recoverCode" type="text" placeholder="recovery code (ABCD-EFGH-...)" />
+            </div>
+            <div class="row" style="margin-top:.45rem;">
+              <input class="field" id="recoverNewPassword" type="password" placeholder="NEW password (20+ chars)" />
+            </div>
+            <div class="row" style="margin-top:.45rem;">
+              <button class="btn btn-primary" id="recoverBtn" type="button"><span class="btn-icon">↺</span><span>Set new password</span></button>
+            </div>
+            <div class="small ok" id="recoverOk" style="display:none;"></div>
+            <div class="small err" id="recoverErr" style="display:none;"></div>
           </div>
         </div>
       </div>
@@ -264,12 +296,18 @@
     const authOk = $("authOk");
     const authErr = $("authErr");
 
+    const forgotBtn = $("forgotBtn");
+    const forgotHint = $("forgotHint");
+
     const email = $("email");
     const password = $("password");
     const vault = $("vault");
 
     const signupBtn = $("signupBtn");
     const loginBtn = $("loginBtn");
+    const googleBtn = $("googleBtn");
+    const guestBtn = $("guestBtn");
+    const upgradeBtn = $("upgradeBtn");
     const logoutBtn = $("logoutBtn");
 
     const input1 = $("input1"), input2 = $("input2");
@@ -282,13 +320,49 @@
     const copyCodesBtn = $("copyCodesBtn");
     const codesBox = $("codesBox");
 
+    const recoverEmail = $("recoverEmail");
+    const recoverCode = $("recoverCode");
+    const recoverNewPassword = $("recoverNewPassword");
+    const recoverBtn = $("recoverBtn");
+    const recoverOk = $("recoverOk");
+    const recoverErr = $("recoverErr");
+
     // Show hosting origin (helps you configure Supabase URL config)
     $("hostUrl").textContent = window.location.origin;
 
     function show(el, text) { el.textContent = text; el.style.display = "block"; }
     function hide(el) { el.style.display = "none"; el.textContent = ""; }
     function clearAuthMsgs(){ hide(authOk); hide(authErr); }
+    function clearRecoverMsgs(){ hide(recoverOk); hide(recoverErr); }
 
+    // ---------- Failed login attempts (show "Forgot password" after 5 failures) ----------
+    function failedKeyForEmail(em){
+      return `failed_login_${(em||"").trim().toLowerCase()}`;
+    }
+    function getFailedCount(em){
+      const v = localStorage.getItem(failedKeyForEmail(em));
+      const n = parseInt(v || "0", 10);
+      return Number.isFinite(n) ? n : 0;
+    }
+    function setFailedCount(em, n){
+      localStorage.setItem(failedKeyForEmail(em), String(n));
+    }
+    function resetFailedCount(em){
+      localStorage.removeItem(failedKeyForEmail(em));
+    }
+    function maybeShowForgotHint(em){
+      const count = getFailedCount(em);
+      if (count >= 5){
+        forgotHint.style.display = "block";
+        forgotHint.textContent = `Too many failed login attempts (${count}). Click “Forgot password” to reset.`;
+      } else {
+        forgotHint.style.display = "none";
+        forgotHint.textContent = "";
+      }
+    }
+    email.addEventListener("input", () => maybeShowForgotHint((email.value||"").trim()));
+
+    // ---------- Character count ----------
     function setCharCount(which){
       const ta = which === 1 ? input1 : input2;
       const c = which === 1 ? count1 : count2;
@@ -404,7 +478,7 @@
       }
 
       logoutBtn.disabled = false;
-      authState.textContent = `Logged in as ${user.email}`;
+      authState.textContent = `Logged in as ${user.email ?? "Guest"}`;
 
       const { data, error } = await supabase
         .from("immutable_notes")
@@ -516,13 +590,98 @@
 
       const { error } = await supabase.auth.signInWithPassword({ email: em, password: pw });
       if (error){
+        const next = getFailedCount(em) + 1;
+        setFailedCount(em, next);
+        maybeShowForgotHint(em);
+
         show(authErr, error.message);
         console.error("Login error:", error);
+        if (next >= 5) toast("Forgot password?");
         return;
       }
 
+      resetFailedCount(em);
+      forgotHint.style.display = "none";
+      forgotHint.textContent = "";
+
       show(authOk, "Logged in.");
       toast("Logged in");
+      await loadNotes();
+    });
+
+    // Forgot password (email reset)
+    forgotBtn.addEventListener("click", async () => {
+      clearAuthMsgs();
+      const em = (email.value||"").trim();
+      if (!em){
+        show(authErr, "Enter your email first, then click Forgot password.");
+        return;
+      }
+      const redirectTo = window.location.origin;
+
+      const { error } = await supabase.auth.resetPasswordForEmail(em, { redirectTo });
+      if (error){
+        show(authErr, error.message);
+        console.error("Reset password error:", error);
+        return;
+      }
+      show(authOk, "Password reset email sent. Check your inbox (and spam).");
+      toast("Reset email sent");
+    });
+
+    // Google login
+    googleBtn.addEventListener("click", async () => {
+      clearAuthMsgs();
+      const redirectTo = window.location.origin;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo }
+      });
+      if (error){
+        show(authErr, error.message);
+        console.error("Google OAuth error:", error);
+      }
+    });
+
+    // Guest (temporary) login
+    guestBtn.addEventListener("click", async () => {
+      clearAuthMsgs();
+      const { error } = await supabase.auth.signInAnonymously();
+      if (error){
+        show(authErr, error.message);
+        console.error("Guest login error:", error);
+        return;
+      }
+      toast("Guest session created");
+      show(authOk, "Guest session created. Upgrade to keep notes across devices.");
+      await loadNotes();
+    });
+
+    // Upgrade guest -> permanent email/password
+    upgradeBtn.addEventListener("click", async () => {
+      clearAuthMsgs();
+      const em = (email.value||"").trim();
+      const pw = password.value||"";
+      if (!em || !pw){
+        show(authErr, "Enter email + password, then click Upgrade.");
+        return;
+      }
+
+      const { data:{ user } } = await supabase.auth.getUser();
+      if (!user){
+        show(authErr, "Login as Guest first, then upgrade.");
+        return;
+      }
+
+      const { error } = await supabase.auth.updateUser({ email: em, password: pw });
+      if (error){
+        show(authErr, error.message);
+        console.error("Upgrade error:", error);
+        return;
+      }
+
+      show(authOk, "Upgraded! If email confirmation is ON, confirm your email. Then you can login anywhere.");
+      toast("Upgraded");
       await loadNotes();
     });
 
@@ -546,11 +705,11 @@
 
     supabase.auth.onAuthStateChange(() => loadNotes());
 
-    // ----------------- Recovery code UI (optional) -----------------
+    // ----------------- Recovery code UI (store hashes) -----------------
     let lastPlainCodes = null;
 
     genCodesBtn.addEventListener("click", async () => {
-      clearAuthMsgs();
+      clearRecoverMsgs(); clearAuthMsgs();
 
       const { data:{ user } } = await supabase.auth.getUser();
       if (!user){
@@ -586,6 +745,51 @@
         toast("Codes copied");
       }catch{
         show(authErr, "Copy failed. Copy manually from the box.");
+      }
+    });
+
+    // Recovery code -> call Edge Function to set password
+    async function callRecoverSetPassword({ email, recoveryCode, newPassword }){
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/recover-set-password`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+          email,
+          recovery_code: recoveryCode,
+          new_password: newPassword
+        })
+      });
+      const out = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(out.error || "Recovery failed.");
+      return out;
+    }
+
+    recoverBtn.addEventListener("click", async () => {
+      clearRecoverMsgs(); clearAuthMsgs();
+      const em = (recoverEmail.value||"").trim();
+      const code = (recoverCode.value||"").trim();
+      const newPw = (recoverNewPassword.value||"");
+
+      if (!em || !code || !newPw){
+        show(recoverErr, "Fill in email, recovery code, and new password.");
+        return;
+      }
+      if (newPw.length < 20){
+        show(recoverErr, "New password must be at least 20 characters.");
+        return;
+      }
+
+      recoverBtn.disabled = true;
+      try{
+        await callRecoverSetPassword({ email: em, recoveryCode: code, newPassword: newPw });
+        show(recoverOk, "Password updated. You can now log in with the new password.");
+        toast("Password updated");
+        recoverNewPassword.value = "";
+        recoverCode.value = "";
+      }catch(e){
+        show(recoverErr, e.message || "Recovery failed.");
+      }finally{
+        recoverBtn.disabled = false;
       }
     });
 
